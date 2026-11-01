@@ -19,6 +19,18 @@ curl -fsSL https://drew-harris.github.io/opencode-web-install/install | bash
 Then use OpenCode normally. Its built-in web UI can load Jello when the server's
 plugin configuration enables Jello and `/api/plugin` reports `features.gui`.
 
+If an older OpenCode background service was already running during installation,
+restart it once and print a browser link:
+
+```sh
+opencode service restart
+opencode pair
+```
+
+Do not use `opencode upgrade` with this build; that command installs the official
+binary and removes the patch. Rerun the installer above to update the patched
+build instead.
+
 ## Publish a release
 
 The tag names encode both the upstream OpenCode version and this patch revision:
