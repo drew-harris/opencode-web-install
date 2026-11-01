@@ -32,6 +32,7 @@ jobs:
         run: |
           upstream="${GITHUB_REF_NAME%%-web.*}"
           echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+          echo "version=${upstream#v}" >> "$GITHUB_OUTPUT"
 
       - name: Clone OpenCode
         run: git clone --depth 1 --branch "${{ steps.version.outputs.upstream }}" https://github.com/anomalyco/opencode.git upstream
@@ -52,6 +53,7 @@ jobs:
         env:
           OPENCODE_TARGET: ${{ matrix.target }}
           OPENCODE_CHANNEL: latest
+          OPENCODE_VERSION: ${{ steps.version.outputs.version }}
         run: bun run --cwd packages/cli build
 
       - name: Package binary
