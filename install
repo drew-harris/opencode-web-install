@@ -1,0 +1,147 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP=opencode
+REPOSITORY="${OPENCODE_WEB_REPOSITORY:-__REPOSITORY__}"
+VERSION="${VERSION:-latest}"
+INSTALL_DIR="${OPENCODE_INSTALL_DIR:-$HOME/.opencode/bin}"
+
+usage() {
+  cat <<EOF
+Patched OpenCode web installer
+
+Usage: install [--version <release>] [--no-modify-path]
+
+Environment:
+  VERSION                      Release tag (default: latest)
+  OPENCODE_INSTALL_DIR         Install directory (default: ~/.opencode/bin)
+  OPENCODE_WEB_REPOSITORY      Override the GitHub owner/repository
+EOF
+}
+
+modify_path=true
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    -v|--version)
+      VERSION="${2:?--version requires a release tag}"
+      shift 2
+      ;;
+    --no-modify-path)
+      modify_path=false
+      shift
+      ;;
+    *)
+      echo "Unknown option: $1" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [[ "$REPOSITORY" == "__REPOSITORY__" ]]; then
+  echo "This installer template has not been published through GitHub Pages." >&2
+  echo "Set OPENCODE_WEB_REPOSITORY=owner/repository to use it directly." >&2
+  exit 1
+fi
+
+if [[ "$(uname -s)" != "Linux" ]]; then
+  echo "This patched build currently supports Linux development servers only." >&2
+  exit 1
+fi
+
+arch=$(uname -m)
+case "$arch" in
+  x86_64|amd64) arch=x64 ;;
+  aarch64|arm64) arch=arm64 ;;
+  *)
+    echo "Unsupported architecture: $arch" >&2
+    exit 1
+    ;;
+esac
+
+is_musl=false
+if [[ -f /etc/alpine-release ]] || (command -v ldd >/dev/null && ldd --version 2>&1 | grep -qi musl); then
+  is_musl=true
+fi
+
+baseline=false
+if [[ "$arch" == "x64" ]] && ! grep -qwi avx2 /proc/cpuinfo 2>/dev/null; then
+  baseline=true
+fi
+
+target="linux-$arch"
+if [[ "$baseline" == true ]]; then
+  target="$target-baseline"
+fi
+if [[ "$is_musl" == true ]]; then
+  target="$target-musl"
+fi
+
+asset="opencode-$target.tar.gz"
+if [[ "$VERSION" == "latest" ]]; then
+  base_url="https://github.com/$REPOSITORY/releases/latest/download"
+else
+  base_url="https://github.com/$REPOSITORY/releases/download/$VERSION"
+fi
+
+tmp=$(mktemp -d "${TMPDIR:-/tmp}/opencode-web-install.XXXXXX")
+trap 'rm -rf "$tmp"' EXIT
+
+echo "Installing patched OpenCode web build ($target)..."
+curl -fL --retry 3 --output "$tmp/$asset" "$base_url/$asset"
+curl -fL --retry 3 --output "$tmp/SHA256SUMS" "$base_url/SHA256SUMS"
+
+expected=$(awk -v file="$asset" '$2 == file { print $1 }' "$tmp/SHA256SUMS")
+if [[ -z "$expected" ]]; then
+  echo "No checksum published for $asset" >&2
+  exit 1
+fi
+
+if command -v sha256sum >/dev/null; then
+  actual=$(sha256sum "$tmp/$asset" | awk '{ print $1 }')
+else
+  actual=$(shasum -a 256 "$tmp/$asset" | awk '{ print $1 }')
+fi
+
+if [[ "$actual" != "$expected" ]]; then
+  echo "Checksum verification failed for $asset" >&2
+  exit 1
+fi
+
+tar -xzf "$tmp/$asset" -C "$tmp"
+mkdir -p "$INSTALL_DIR"
+install -m 755 "$tmp/opencode" "$INSTALL_DIR/opencode.new"
+mv -f "$INSTALL_DIR/opencode.new" "$INSTALL_DIR/opencode"
+
+path_added=false
+if [[ ":$PATH:" != *":$INSTALL_DIR:"* ]] && [[ "$modify_path" == true ]]; then
+  shell_name=$(basename "${SHELL:-sh}")
+  case "$shell_name" in
+    zsh) profile="${ZDOTDIR:-$HOME}/.zshrc" ;;
+    bash) profile="$HOME/.bashrc" ;;
+    fish) profile="$HOME/.config/fish/config.fish" ;;
+    *) profile="$HOME/.profile" ;;
+  esac
+  mkdir -p "$(dirname "$profile")"
+  touch "$profile"
+  if [[ "$shell_name" == fish ]]; then
+    line="fish_add_path $INSTALL_DIR"
+  else
+    line="export PATH=\"$INSTALL_DIR:\$PATH\""
+  fi
+  if ! grep -Fqx "$line" "$profile"; then
+    printf '\n# patched opencode web build\n%s\n' "$line" >> "$profile"
+    path_added=true
+  fi
+fi
+
+echo
+echo "Patched OpenCode installed at $INSTALL_DIR/opencode"
+if [[ "$path_added" == true ]]; then
+  echo "Open a new shell, then run: opencode"
+else
+  echo "Run: opencode"
+fi

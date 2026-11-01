@@ -1,0 +1,84 @@
+name: Release patched OpenCode
+
+on:
+  push:
+    tags:
+      - "v*-web.*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        target:
+          - linux-x64
+          - linux-x64-baseline
+          - linux-x64-musl
+          - linux-x64-baseline-musl
+          - linux-arm64
+          - linux-arm64-musl
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve upstream tag
+        id: version
+        shell: bash
+        run: |
+          upstream="${GITHUB_REF_NAME%%-web.*}"
+          echo "upstream=$upstream" >> "$GITHUB_OUTPUT"
+
+      - name: Clone OpenCode
+        run: git clone --depth 1 --branch "${{ steps.version.outputs.upstream }}" https://github.com/anomalyco/opencode.git upstream
+
+      - name: Apply web GUI patch
+        run: git -C upstream apply "$GITHUB_WORKSPACE/patches/web-gui-plugins.patch"
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.4
+
+      - name: Install build dependencies
+        working-directory: upstream
+        run: bun install --frozen-lockfile
+
+      - name: Build self-contained CLI
+        working-directory: upstream
+        env:
+          OPENCODE_TARGET: ${{ matrix.target }}
+          OPENCODE_CHANNEL: latest
+        run: bun run --cwd packages/cli build
+
+      - name: Package binary
+        shell: bash
+        run: tar -czf "opencode-${{ matrix.target }}.tar.gz" -C "upstream/packages/cli/dist/cli-${{ matrix.target }}/bin" opencode
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: opencode-${{ matrix.target }}
+          path: opencode-${{ matrix.target }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: opencode-*
+          merge-multiple: true
+          path: release
+
+      - name: Generate checksums
+        working-directory: release
+        run: sha256sum opencode-*.tar.gz > SHA256SUMS
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
