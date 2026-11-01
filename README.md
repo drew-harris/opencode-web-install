@@ -10,11 +10,10 @@ binary just like the official release.
 
 ## Install
 
-After this repository is pushed to GitHub and Pages is enabled for GitHub
-Actions, install with:
+Install with:
 
 ```sh
-curl -fsSL https://OWNER.github.io/REPOSITORY/install | bash
+curl -fsSL https://drew-harris.github.io/opencode-web-install/install | bash
 ```
 
 Then use OpenCode normally. Its built-in web UI can load Jello when the server's
