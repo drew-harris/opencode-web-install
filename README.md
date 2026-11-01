@@ -4,6 +4,10 @@ This repository builds normal, self-contained OpenCode Linux binaries with one
 small change: the browser UI loads active third-party `gui-experimental` plugins
 from the OpenCode server.
 
+OpenCode's plugin bundles use a CommonJS evaluator, so this build explicitly
+permits JavaScript string evaluation in the web UI's Content Security Policy.
+Only configure GUI plugins you trust.
+
 The work development server does **not** need Bun, a source checkout, a reverse
 proxy, or a second process. The patched web assets are embedded in the OpenCode
 binary just like the official release.
@@ -67,5 +71,7 @@ OPENCODE_WEB_REPOSITORY=OWNER/REPOSITORY bash install --help
 ## Limitations
 
 - Release artifacts currently target Linux development servers.
+- The web UI permits CSP `'unsafe-eval'` so trusted CommonJS GUI plugin bundles
+  can run.
 - Browser plugins run GUI `setup`; Electron `main`, native menus, and desktop IPC
   remain unavailable in web mode.
