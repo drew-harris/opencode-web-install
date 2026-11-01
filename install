@@ -41,12 +41,6 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-if [[ "$REPOSITORY" == "__REPOSITORY__" ]]; then
-  echo "This installer template has not been published through GitHub Pages." >&2
-  echo "Set OPENCODE_WEB_REPOSITORY=owner/repository to use it directly." >&2
-  exit 1
-fi
-
 if [[ "$(uname -s)" != "Linux" ]]; then
   echo "This patched build currently supports Linux development servers only." >&2
   exit 1
