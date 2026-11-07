@@ -40,13 +40,13 @@ build instead.
 The tag names encode both the upstream OpenCode version and this patch revision:
 
 ```sh
-git tag v2.2.5-web.1
-git push origin main v2.2.5-web.1
+git tag v2.2.6-web.1
+git push origin main v2.2.6-web.1
 ```
 
 The release workflow:
 
-1. Clones the matching upstream tag (`v2.2.5`).
+1. Clones the matching upstream tag (`v2.2.6`).
 2. Applies `patches/web-gui-plugins.patch`.
 3. Builds Linux glibc, musl, x64 baseline, x64 AVX2, and arm64 binaries.
 4. Publishes checksummed release archives.
